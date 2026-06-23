@@ -1,7 +1,5 @@
 """카메라 이미지를 구독해 YOLO 객체 탐지 결과를 발행합니다."""
 
-from dataclasses import dataclass
-
 import cv2
 from cv_bridge import CvBridge
 import rclpy
@@ -15,49 +13,6 @@ from vision_msgs.msg import ObjectHypothesisWithPose
 from object_detector.parameters import declare_detector_parameters
 from object_detector.parameters import read_detector_parameters
 from object_detector.yolo_detector import YoloDetector
-
-
-@dataclass(frozen=True)
-class DetectionFrameResult:
-    """한 프레임 처리 결과입니다."""
-
-    detections_message: Detection2DArray
-    annotated_message: Image | None
-
-
-class DetectionFrameProcessor:
-    """ROS 이미지 한 프레임을 탐지 결과 메시지로 변환합니다."""
-
-    def __init__(self, bridge, detector, publish_annotated_image):
-        """프레임 처리에 필요한 adapter를 받습니다."""
-        self.bridge = bridge
-        self.detector = detector
-        self.publish_annotated_image = publish_annotated_image
-
-    def process(self, message):
-        """이미지 메시지 한 개를 탐지 결과 메시지로 처리합니다."""
-        frame = self.bridge.imgmsg_to_cv2(
-            message,
-            desired_encoding='bgr8',
-        )
-        detections = self.detector.detect(frame)
-        detections_message = build_detection_array(
-            message.header,
-            detections,
-        )
-        annotated_message = None
-        if self.publish_annotated_image:
-            annotated_frame = draw_detections(frame.copy(), detections)
-            annotated_message = self.bridge.cv2_to_imgmsg(
-                annotated_frame,
-                encoding='bgr8',
-            )
-            annotated_message.header = message.header
-
-        return DetectionFrameResult(
-            detections_message=detections_message,
-            annotated_message=annotated_message,
-        )
 
 
 class YoloDetectorNode(Node):
@@ -81,11 +36,6 @@ class YoloDetectorNode(Node):
             iou_threshold=parameters.iou_threshold,
             image_size=parameters.image_size,
             device=parameters.device,
-        )
-        self.frame_processor = DetectionFrameProcessor(
-            self.bridge,
-            self.detector,
-            self.publish_annotated_image,
         )
         self.logged_effective_device = False
         self.detections_publisher = self.create_publisher(
@@ -118,18 +68,31 @@ class YoloDetectorNode(Node):
 
     def _image_callback(self, message):
         try:
-            result = self.frame_processor.process(message)
+            frame = self.bridge.imgmsg_to_cv2(
+                message,
+                desired_encoding='bgr8',
+            )
+            detections = self.detector.detect(frame)
+            detections_message = build_detection_array(
+                message.header,
+                detections,
+            )
+            annotated_message = None
+            if self.annotated_image_publisher is not None:
+                annotated_frame = draw_detections(frame.copy(), detections)
+                annotated_message = self.bridge.cv2_to_imgmsg(
+                    annotated_frame,
+                    encoding='bgr8',
+                )
+                annotated_message.header = message.header
         except Exception as exc:
             self.get_logger().error('Object detection failed: %s' % exc)
             return
 
         self._log_effective_device_once()
-        self.detections_publisher.publish(result.detections_message)
-        if (
-            self.annotated_image_publisher is not None and
-            result.annotated_message is not None
-        ):
-            self.annotated_image_publisher.publish(result.annotated_message)
+        self.detections_publisher.publish(detections_message)
+        if annotated_message is not None:
+            self.annotated_image_publisher.publish(annotated_message)
 
     def _log_effective_device_once(self):
         """첫 추론 후 확인된 YOLO 장치를 한 번만 출력합니다."""

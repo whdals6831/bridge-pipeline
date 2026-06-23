@@ -18,31 +18,6 @@ class CaptureSettings:
     frame_id: str
 
 
-class OpenCVCapture:
-    """OpenCV VideoCapture adapter입니다."""
-
-    def __init__(self, camera_index):
-        self._capture = cv2.VideoCapture(camera_index)
-
-    def configure(self, settings):
-        """카메라 속성을 설정합니다."""
-        self._capture.set(cv2.CAP_PROP_FRAME_WIDTH, float(settings.width))
-        self._capture.set(cv2.CAP_PROP_FRAME_HEIGHT, float(settings.height))
-        self._capture.set(cv2.CAP_PROP_FPS, float(settings.fps))
-
-    def is_opened(self):
-        """카메라가 열려 있는지 반환합니다."""
-        return self._capture.isOpened()
-
-    def read(self):
-        """프레임 하나를 읽습니다."""
-        return self._capture.read()
-
-    def release(self):
-        """카메라 리소스를 해제합니다."""
-        self._capture.release()
-
-
 class CameraSession:
     """카메라 입력부터 ROS 이미지 발행까지의 실행 흐름입니다."""
 
@@ -54,7 +29,7 @@ class CameraSession:
         logger,
         timer_factory,
         timer_destroyer,
-        capture_factory=OpenCVCapture,
+        capture_factory=cv2.VideoCapture,
         bridge=None,
     ):
         self._settings = settings
@@ -84,9 +59,17 @@ class CameraSession:
         self._release_capture()
 
         self._capture = self._capture_factory(self._settings.camera_index)
-        self._capture.configure(self._settings)
+        self._capture.set(
+            cv2.CAP_PROP_FRAME_WIDTH,
+            float(self._settings.width),
+        )
+        self._capture.set(
+            cv2.CAP_PROP_FRAME_HEIGHT,
+            float(self._settings.height),
+        )
+        self._capture.set(cv2.CAP_PROP_FPS, float(self._settings.fps))
 
-        if not self._capture.is_opened():
+        if not self._capture.isOpened():
             self._logger.error(
                 'Failed to open camera index %d; retrying in %.1f seconds'
                 % (
@@ -106,7 +89,7 @@ class CameraSession:
         self._logger.info('Camera opened')
 
     def _publish_frame(self):
-        if self._capture is None or not self._capture.is_opened():
+        if self._capture is None or not self._capture.isOpened():
             self._handle_read_failure('Camera is not open')
             return
 

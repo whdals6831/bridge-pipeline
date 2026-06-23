@@ -8,7 +8,6 @@ import cv2
 import pytest
 
 from image_capture.image_capture_node import ImageCaptureNode
-from image_capture.image_capture_node import ImageCaptureOpenError
 
 
 class FakeBridge:
@@ -64,7 +63,7 @@ def test_load_image_requires_image_path():
     node = make_node()
     node.image_path = ''
 
-    with pytest.raises(ImageCaptureOpenError):
+    with pytest.raises(RuntimeError):
         node._load_image()
 
     node.get_logger.return_value.error.assert_called_once_with(
@@ -78,7 +77,7 @@ def test_load_image_fails_when_image_cannot_be_read():
     with patch('image_capture.image_capture_node.cv2.imread') as imread:
         imread.return_value = None
 
-        with pytest.raises(ImageCaptureOpenError):
+        with pytest.raises(RuntimeError):
             node._load_image()
 
     node.get_logger.return_value.error.assert_called_once_with(

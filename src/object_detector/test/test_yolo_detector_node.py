@@ -6,7 +6,7 @@ from std_msgs.msg import Header
 
 from object_detector.yolo_detector import Detection
 from object_detector.yolo_detector_node import build_detection_array
-from object_detector.yolo_detector_node import DetectionFrameProcessor
+from object_detector.yolo_detector_node import YoloDetectorNode
 
 
 def make_detection():
@@ -81,49 +81,60 @@ def test_build_detection_array_sets_bbox_and_hypothesis():
     assert detection_message.results[0].hypothesis.score == 0.9
 
 
-def test_detection_frame_processor_builds_detection_and_annotation_messages():
-    frame = np.zeros((100, 100, 3), dtype=np.uint8)
-    bridge = FakeBridge(frame)
-    detector = FakeDetector([make_detection()])
-    processor = DetectionFrameProcessor(
-        bridge,
-        detector,
-        publish_annotated_image=True,
+def make_node(frame, detections, publish_annotated_image=True):
+    node = object.__new__(YoloDetectorNode)
+    node.bridge = FakeBridge(frame)
+    node.detector = FakeDetector(detections)
+    node.logged_effective_device = True
+    node.detections_publisher = FakePublisher()
+    node.annotated_image_publisher = (
+        FakePublisher() if publish_annotated_image else None
     )
+    node.get_logger = lambda: FakeLogger()
+    return node
+
+
+class FakePublisher:
+    """발행된 메시지를 기록합니다."""
+
+    def __init__(self):
+        self.messages = []
+
+    def publish(self, message):
+        self.messages.append(message)
+
+
+def test_image_callback_builds_detection_and_annotation_messages():
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+    node = make_node(frame, [make_detection()])
     image_message = Image()
     image_message.header.frame_id = 'camera_frame'
 
-    result = processor.process(image_message)
+    node._image_callback(image_message)
 
-    assert bridge.imgmsg_encoding == 'bgr8'
-    assert bridge.cv2_encoding == 'bgr8'
-    assert detector.detected_frame is frame
-    assert result.detections_message.header.frame_id == 'camera_frame'
-    assert len(result.detections_message.detections) == 1
-    assert result.annotated_message.header.frame_id == 'camera_frame'
-    assert bridge.annotated_frame is not frame
+    assert node.bridge.imgmsg_encoding == 'bgr8'
+    assert node.bridge.cv2_encoding == 'bgr8'
+    assert node.detector.detected_frame is frame
+    detections_message = node.detections_publisher.messages[0]
+    assert detections_message.header.frame_id == 'camera_frame'
+    assert len(detections_message.detections) == 1
+    annotated_message = node.annotated_image_publisher.messages[0]
+    assert annotated_message.header.frame_id == 'camera_frame'
+    assert node.bridge.annotated_frame is not frame
 
 
-def test_detection_frame_processor_can_skip_annotation_message():
+def test_image_callback_can_skip_annotation_message():
     frame = np.zeros((100, 100, 3), dtype=np.uint8)
-    bridge = FakeBridge(frame)
-    detector = FakeDetector([make_detection()])
-    processor = DetectionFrameProcessor(
-        bridge,
-        detector,
-        publish_annotated_image=False,
-    )
+    node = make_node(frame, [make_detection()], publish_annotated_image=False)
     image_message = Image()
 
-    result = processor.process(image_message)
+    node._image_callback(image_message)
 
-    assert result.annotated_message is None
-    assert bridge.cv2_encoding is None
+    assert len(node.detections_publisher.messages) == 1
+    assert node.bridge.cv2_encoding is None
 
 
 def test_log_effective_device_once_logs_first_available_device():
-    from object_detector.yolo_detector_node import YoloDetectorNode
-
     node = object.__new__(YoloDetectorNode)
     node.detector = FakeDetector([], effective_device='cuda:0')
     node.logged_effective_device = False

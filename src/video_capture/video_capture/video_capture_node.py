@@ -16,10 +16,6 @@ from video_capture.parameters import read_video_parameters
 DEFAULT_FPS = 30.0
 
 
-class VideoCaptureOpenError(RuntimeError):
-    """비디오 파일을 열 수 없을 때 발생합니다."""
-
-
 class VideoCaptureNode(Node):
     """OpenCV VideoCapture에서 비디오 프레임을 가져와 발행합니다."""
 
@@ -53,7 +49,7 @@ class VideoCaptureNode(Node):
     def _open_capture(self):
         if not self.video_path:
             self.get_logger().error('video_path parameter is required')
-            raise VideoCaptureOpenError('video_path parameter is required')
+            raise RuntimeError('video_path parameter is required')
 
         self._release_capture()
         self.capture = cv2.VideoCapture(self.video_path)
@@ -62,7 +58,7 @@ class VideoCaptureNode(Node):
                 'Failed to open video file: %s' % self.video_path
             )
             self._release_capture()
-            raise VideoCaptureOpenError(
+            raise RuntimeError(
                 'Failed to open video file: %s' % self.video_path
             )
 
@@ -142,17 +138,19 @@ class VideoCaptureNode(Node):
 def main(args=None):
     """비디오 캡처 노드를 시작합니다."""
     rclpy.init(args=args)
-    node = None
     try:
         node = VideoCaptureNode()
-        rclpy.spin(node)
-    except VideoCaptureOpenError:
+    except RuntimeError:
+        if rclpy.ok():
+            rclpy.shutdown()
         return 1
+
+    try:
+        rclpy.spin(node)
     except KeyboardInterrupt:
         return 0
     finally:
-        if node is not None:
-            node.destroy_node()
+        node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
     return 0

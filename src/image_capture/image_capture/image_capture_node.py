@@ -13,10 +13,6 @@ from image_capture.parameters import declare_image_parameters
 from image_capture.parameters import read_image_parameters
 
 
-class ImageCaptureOpenError(RuntimeError):
-    """이미지 파일을 읽을 수 없을 때 발생합니다."""
-
-
 class ImageCaptureNode(Node):
     """이미지 파일 하나를 주기적으로 ROS 이미지로 발행합니다."""
 
@@ -56,14 +52,14 @@ class ImageCaptureNode(Node):
     def _load_image(self):
         if not self.image_path:
             self.get_logger().error('image_path parameter is required')
-            raise ImageCaptureOpenError('image_path parameter is required')
+            raise RuntimeError('image_path parameter is required')
 
         frame = cv2.imread(self.image_path, cv2.IMREAD_COLOR)
         if frame is None:
             self.get_logger().error(
                 'Failed to read image file: %s' % self.image_path
             )
-            raise ImageCaptureOpenError(
+            raise RuntimeError(
                 'Failed to read image file: %s' % self.image_path
             )
         return frame
@@ -83,17 +79,19 @@ class ImageCaptureNode(Node):
 def main(args=None):
     """이미지 캡처 노드를 시작합니다."""
     rclpy.init(args=args)
-    node = None
     try:
         node = ImageCaptureNode()
-        rclpy.spin(node)
-    except ImageCaptureOpenError:
+    except RuntimeError:
+        if rclpy.ok():
+            rclpy.shutdown()
         return 1
+
+    try:
+        rclpy.spin(node)
     except KeyboardInterrupt:
         return 0
     finally:
-        if node is not None:
-            node.destroy_node()
+        node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
     return 0

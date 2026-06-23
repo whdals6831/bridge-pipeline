@@ -32,7 +32,7 @@ PARAMETER_SPECS = (
     ParameterSpec('image_path', ''),
     ParameterSpec('image_topic', '/image/image_raw'),
     ParameterSpec('frame_id', 'image_frame'),
-    ParameterSpec('fps', 30.0, float),
+    ParameterSpec('fps', 1.0, float),
 )
 
 

@@ -2,6 +2,8 @@
 
 from types import SimpleNamespace
 
+import cv2
+
 from camera_capture.camera_session import CameraSession
 from camera_capture.camera_session import CaptureSettings
 
@@ -15,14 +17,14 @@ class FakeCapture:
 
     def __init__(self, camera_index):
         self.camera_index = camera_index
-        self.configured_with = None
+        self.settings = []
         self.released = False
         FakeCapture.instances.append(self)
 
-    def configure(self, settings):
-        self.configured_with = settings
+    def set(self, key, value):
+        self.settings.append((key, value))
 
-    def is_opened(self):
+    def isOpened(self):
         return FakeCapture.opened
 
     def read(self):
@@ -127,7 +129,11 @@ def test_start_opens_capture_and_creates_frame_timer():
 
     assert len(FakeCapture.instances) == 1
     assert FakeCapture.instances[0].camera_index == 2
-    assert FakeCapture.instances[0].configured_with == make_settings()
+    assert FakeCapture.instances[0].settings == [
+        (cv2.CAP_PROP_FRAME_WIDTH, 800.0),
+        (cv2.CAP_PROP_FRAME_HEIGHT, 600.0),
+        (cv2.CAP_PROP_FPS, 20.0),
+    ]
     assert timers[0].period == 0.05
     assert logger.infos == ['Camera opened']
 
