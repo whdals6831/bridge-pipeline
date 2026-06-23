@@ -43,13 +43,24 @@ class FakeBridge:
 class FakeDetector:
     """테스트용 detector adapter입니다."""
 
-    def __init__(self, detections):
+    def __init__(self, detections, effective_device=None):
         self.detections = detections
+        self.effective_device = effective_device
         self.detected_frame = None
 
     def detect(self, frame):
         self.detected_frame = frame
         return self.detections
+
+
+class FakeLogger:
+    """테스트용 ROS logger 대역입니다."""
+
+    def __init__(self):
+        self.info_messages = []
+
+    def info(self, message):
+        self.info_messages.append(message)
 
 
 def test_build_detection_array_sets_bbox_and_hypothesis():
@@ -108,3 +119,20 @@ def test_detection_frame_processor_can_skip_annotation_message():
 
     assert result.annotated_message is None
     assert bridge.cv2_encoding is None
+
+
+def test_log_effective_device_once_logs_first_available_device():
+    from object_detector.yolo_detector_node import YoloDetectorNode
+
+    node = object.__new__(YoloDetectorNode)
+    node.detector = FakeDetector([], effective_device='cuda:0')
+    node.logged_effective_device = False
+    logger = FakeLogger()
+    node.get_logger = lambda: logger
+
+    node._log_effective_device_once()
+    node._log_effective_device_once()
+
+    assert logger.info_messages == [
+        'YOLO inference is running on device cuda:0',
+    ]

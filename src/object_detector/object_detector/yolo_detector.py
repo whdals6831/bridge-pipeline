@@ -61,6 +61,7 @@ class YoloDetector:
         self.iou_threshold = iou_threshold
         self.image_size = image_size
         self.device = device or None
+        self.effective_device = None
 
     def detect(self, frame):
         """프레임에서 객체를 탐지합니다."""
@@ -72,9 +73,15 @@ class YoloDetector:
             device=self.device,
             verbose=False,
         )
+        self.effective_device = _device_name(self.model)
         if not results:
             return []
         return detections_from_ultralytics_result(results[0])
+
+    @property
+    def requested_device_name(self):
+        """요청된 추론 장치 이름을 반환합니다."""
+        return self.device or 'auto'
 
 
 def detections_from_ultralytics_result(result):
@@ -115,3 +122,26 @@ def _to_list(value):
     if hasattr(value, 'tolist'):
         return value.tolist()
     return list(value)
+
+
+def _device_name(model):
+    device = getattr(model, 'device', None)
+    if device is not None:
+        return str(device)
+
+    torch_model = getattr(model, 'model', None)
+    device = getattr(torch_model, 'device', None)
+    if device is not None:
+        return str(device)
+
+    parameters = getattr(torch_model, 'parameters', None)
+    if parameters is None:
+        return None
+    try:
+        first_parameter = next(parameters())
+    except (StopIteration, TypeError):
+        return None
+    device = getattr(first_parameter, 'device', None)
+    if device is None:
+        return None
+    return str(device)

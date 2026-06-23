@@ -1,6 +1,7 @@
 """YOLO 탐지 변환 유틸리티 테스트입니다."""
 
 from object_detector.yolo_detector import detections_from_ultralytics_result
+from object_detector.yolo_detector import _device_name
 
 
 class Boxes:
@@ -30,3 +31,36 @@ def test_detections_from_ultralytics_result():
     assert detection.center_y == 50.0
     assert detection.width == 40.0
     assert detection.height == 60.0
+
+
+class ModelWithDevice:
+    """device 속성이 있는 YOLO 모델 대역입니다."""
+
+    device = 'cuda:0'
+
+
+class Parameter:
+    """PyTorch parameter 대역입니다."""
+
+    device = 'cpu'
+
+
+class TorchModel:
+    """parameters로 장치를 노출하는 torch 모델 대역입니다."""
+
+    def parameters(self):
+        return iter([Parameter()])
+
+
+class YoloModel:
+    """내부 torch 모델을 가진 YOLO 모델 대역입니다."""
+
+    model = TorchModel()
+
+
+def test_device_name_reads_yolo_model_device():
+    assert _device_name(ModelWithDevice()) == 'cuda:0'
+
+
+def test_device_name_falls_back_to_torch_parameter_device():
+    assert _device_name(YoloModel()) == 'cpu'

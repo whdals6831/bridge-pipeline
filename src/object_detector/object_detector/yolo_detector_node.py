@@ -87,6 +87,7 @@ class YoloDetectorNode(Node):
             self.detector,
             self.publish_annotated_image,
         )
+        self.logged_effective_device = False
         self.detections_publisher = self.create_publisher(
             Detection2DArray,
             self.detections_topic,
@@ -107,8 +108,12 @@ class YoloDetectorNode(Node):
         )
 
         self.get_logger().info(
-            'Detecting objects from %s with %s'
-            % (self.input_image_topic, parameters.model_path)
+            'Detecting objects from %s with %s on device %s'
+            % (
+                self.input_image_topic,
+                parameters.model_path,
+                self.detector.requested_device_name,
+            )
         )
 
     def _image_callback(self, message):
@@ -118,12 +123,27 @@ class YoloDetectorNode(Node):
             self.get_logger().error('Object detection failed: %s' % exc)
             return
 
+        self._log_effective_device_once()
         self.detections_publisher.publish(result.detections_message)
         if (
             self.annotated_image_publisher is not None and
             result.annotated_message is not None
         ):
             self.annotated_image_publisher.publish(result.annotated_message)
+
+    def _log_effective_device_once(self):
+        """첫 추론 후 확인된 YOLO 장치를 한 번만 출력합니다."""
+        if self.logged_effective_device:
+            return
+
+        effective_device = self.detector.effective_device
+        if effective_device is None:
+            return
+
+        self.logged_effective_device = True
+        self.get_logger().info(
+            'YOLO inference is running on device %s' % effective_device
+        )
 
 
 def build_detection_array(header, detections):
