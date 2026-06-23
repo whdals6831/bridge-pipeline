@@ -1,132 +1,63 @@
 """로컬에 연결된 카메라 프레임을 ROS 이미지로 발행합니다."""
 
-import cv2
-from cv_bridge import CvBridge
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
 
+from camera_capture.camera_session import CameraSession
+from camera_capture.camera_session import CaptureSettings
 from camera_capture.parameters import declare_camera_parameters
 from camera_capture.parameters import read_camera_parameters
 
 
 class CameraCaptureNode(Node):
-    """OpenCV VideoCapture에서 프레임을 가져와 발행합니다."""
+    """카메라 세션을 ROS 노드 생명주기에 연결합니다."""
 
     def __init__(self):
         super().__init__('camera_capture')
 
         declare_camera_parameters(self)
         parameters = read_camera_parameters(self)
-        self.camera_index = parameters.camera_index
-        self.image_topic = parameters.image_topic
-        self.frame_id = parameters.frame_id
-        self.width = parameters.width
-        self.height = parameters.height
-        self.fps = parameters.fps
-        self.retry_interval_sec = parameters.retry_interval_sec
+        settings = CaptureSettings(
+            camera_index=parameters.camera_index,
+            width=parameters.width,
+            height=parameters.height,
+            fps=parameters.fps,
+            retry_interval_sec=parameters.retry_interval_sec,
+            frame_id=parameters.frame_id,
+        )
 
-        self.bridge = CvBridge()
-        self.capture = None
-        self.warned_read_failure = False
-        self.frame_timer = None
-        self.retry_timer = None
         self.publisher = self.create_publisher(
             Image,
-            self.image_topic,
+            parameters.image_topic,
             qos_profile_sensor_data,
+        )
+        self.session = CameraSession(
+            settings=settings,
+            publisher=self.publisher,
+            clock=self.get_clock(),
+            logger=self.get_logger(),
+            timer_factory=self.create_timer,
+            timer_destroyer=self.destroy_timer,
         )
 
         self.get_logger().info(
             'Publishing camera %d to %s at %dx%d %.1f fps'
             % (
-                self.camera_index,
-                self.image_topic,
-                self.width,
-                self.height,
-                self.fps,
+                parameters.camera_index,
+                parameters.image_topic,
+                parameters.width,
+                parameters.height,
+                parameters.fps,
             )
         )
-        self._open_capture()
+        self.session.start()
 
     def destroy_node(self):
-        """노드를 종료하기 전에 카메라를 해제합니다."""
-        self._release_capture()
+        """노드를 종료하기 전에 카메라 세션을 닫습니다."""
+        self.session.close()
         super().destroy_node()
-
-    def _open_capture(self):
-        self._destroy_retry_timer()
-
-        self._release_capture()
-        self.capture = cv2.VideoCapture(self.camera_index)
-        self.capture.set(cv2.CAP_PROP_FRAME_WIDTH, float(self.width))
-        self.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, float(self.height))
-        self.capture.set(cv2.CAP_PROP_FPS, float(self.fps))
-
-        if not self.capture.isOpened():
-            self.get_logger().error(
-                'Failed to open camera index %d; retrying in %.1f seconds'
-                % (self.camera_index, self.retry_interval_sec)
-            )
-            self._release_capture()
-            self._schedule_retry()
-            return
-
-        self.warned_read_failure = False
-        period_sec = 1.0 / self.fps
-        self.frame_timer = self.create_timer(period_sec, self._publish_frame)
-        self.get_logger().info('Camera opened')
-
-    def _publish_frame(self):
-        if self.capture is None or not self.capture.isOpened():
-            self._handle_read_failure('Camera is not open')
-            return
-
-        success, frame = self.capture.read()
-        if not success or frame is None:
-            self._handle_read_failure('Failed to read frame from camera')
-            return
-
-        self.warned_read_failure = False
-        message = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
-        message.header.stamp = self.get_clock().now().to_msg()
-        message.header.frame_id = self.frame_id
-        self.publisher.publish(message)
-
-    def _handle_read_failure(self, message):
-        if not self.warned_read_failure:
-            self.get_logger().warn(
-                '%s; retrying in %.1f seconds'
-                % (message, self.retry_interval_sec)
-            )
-            self.warned_read_failure = True
-
-        self._release_capture()
-        self._schedule_retry()
-
-    def _schedule_retry(self):
-        if self.retry_timer is None:
-            self.retry_timer = self.create_timer(
-                self.retry_interval_sec,
-                self._open_capture,
-            )
-
-    def _release_capture(self):
-        self._destroy_frame_timer()
-        if self.capture is not None:
-            self.capture.release()
-            self.capture = None
-
-    def _destroy_frame_timer(self):
-        if self.frame_timer is not None:
-            self.destroy_timer(self.frame_timer)
-            self.frame_timer = None
-
-    def _destroy_retry_timer(self):
-        if self.retry_timer is not None:
-            self.destroy_timer(self.retry_timer)
-            self.retry_timer = None
 
 
 def main(args=None):
