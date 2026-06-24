@@ -1,6 +1,5 @@
 """카메라 이미지를 구독해 YOLO 객체 탐지 결과를 발행합니다."""
 
-import cv2
 from cv_bridge import CvBridge
 import rclpy
 from rclpy.node import Node
@@ -79,7 +78,7 @@ class YoloDetectorNode(Node):
             )
             annotated_message = None
             if self.annotated_image_publisher is not None:
-                annotated_frame = draw_detections(frame.copy(), detections)
+                annotated_frame = self.detector.plot_last_result(frame)
                 annotated_message = self.bridge.cv2_to_imgmsg(
                     annotated_frame,
                     encoding='bgr8',
@@ -148,26 +147,6 @@ def build_hypothesis(detection):
     hypothesis.hypothesis.class_id = detection.label
     hypothesis.hypothesis.score = detection.confidence
     return hypothesis
-
-
-def draw_detections(frame, detections):
-    """프레임에 탐지 박스와 레이블을 그립니다."""
-    for detection in detections:
-        start = (int(detection.x_min), int(detection.y_min))
-        end = (int(detection.x_max), int(detection.y_max))
-        label = '%s %.2f' % (detection.label, detection.confidence)
-        cv2.rectangle(frame, start, end, (0, 255, 0), 2)
-        cv2.putText(
-            frame,
-            label,
-            (start[0], max(start[1] - 6, 0)),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.5,
-            (0, 255, 0),
-            1,
-            cv2.LINE_AA,
-        )
-    return frame
 
 
 def main(args=None):

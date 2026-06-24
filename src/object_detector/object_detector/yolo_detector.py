@@ -62,9 +62,11 @@ class YoloDetector:
         self.image_size = image_size
         self.device = device or None
         self.effective_device = None
+        self.last_result = None
 
     def detect(self, frame):
         """프레임에서 객체를 탐지합니다."""
+        self.last_result = None
         results = self.model.predict(
             frame,
             conf=self.confidence_threshold,
@@ -76,7 +78,18 @@ class YoloDetector:
         self.effective_device = _device_name(self.model)
         if not results:
             return []
-        return detections_from_ultralytics_result(results[0])
+        self.last_result = results[0]
+        return detections_from_ultralytics_result(self.last_result)
+
+    def plot_last_result(self, frame):
+        """마지막 YOLO 결과를 Ultralytics 기본 스타일로 그립니다."""
+        if self.last_result is None:
+            return frame.copy()
+        return self.last_result.plot(
+            img=frame.copy(),
+            color_mode='class',
+            txt_color=(255, 255, 255),
+        )
 
     @property
     def requested_device_name(self):

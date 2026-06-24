@@ -47,10 +47,15 @@ class FakeDetector:
         self.detections = detections
         self.effective_device = effective_device
         self.detected_frame = None
+        self.plotted_frame = None
 
     def detect(self, frame):
         self.detected_frame = frame
         return self.detections
+
+    def plot_last_result(self, frame):
+        self.plotted_frame = frame
+        return frame.copy()
 
 
 class FakeLogger:
@@ -118,6 +123,7 @@ def test_image_callback_builds_detection_and_annotation_messages():
     detections_message = node.detections_publisher.messages[0]
     assert detections_message.header.frame_id == 'camera_frame'
     assert len(detections_message.detections) == 1
+    assert node.detector.plotted_frame is frame
     annotated_message = node.annotated_image_publisher.messages[0]
     assert annotated_message.header.frame_id == 'camera_frame'
     assert node.bridge.annotated_frame is not frame

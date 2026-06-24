@@ -1,6 +1,9 @@
 """YOLO 탐지 변환 유틸리티 테스트입니다."""
 
+import numpy as np
+
 from object_detector.yolo_detector import detections_from_ultralytics_result
+from object_detector.yolo_detector import YoloDetector
 from object_detector.yolo_detector import _device_name
 
 
@@ -31,6 +34,40 @@ def test_detections_from_ultralytics_result():
     assert detection.center_y == 50.0
     assert detection.width == 40.0
     assert detection.height == 60.0
+
+
+class PlotResult:
+    """plot 호출을 기록하는 Ultralytics result 대역입니다."""
+
+    def __init__(self):
+        self.plot_kwargs = None
+
+    def plot(self, **kwargs):
+        self.plot_kwargs = kwargs
+        return kwargs['img']
+
+
+def test_plot_last_result_uses_ultralytics_class_colors():
+    detector = object.__new__(YoloDetector)
+    detector.last_result = PlotResult()
+    frame = np.zeros((10, 10, 3), dtype=np.uint8)
+
+    annotated = detector.plot_last_result(frame)
+
+    assert annotated is not frame
+    assert detector.last_result.plot_kwargs['color_mode'] == 'class'
+    assert detector.last_result.plot_kwargs['txt_color'] == (255, 255, 255)
+
+
+def test_plot_last_result_copies_frame_without_result():
+    detector = object.__new__(YoloDetector)
+    detector.last_result = None
+    frame = np.zeros((10, 10, 3), dtype=np.uint8)
+
+    annotated = detector.plot_last_result(frame)
+
+    assert annotated is not frame
+    assert np.array_equal(annotated, frame)
 
 
 class ModelWithDevice:
