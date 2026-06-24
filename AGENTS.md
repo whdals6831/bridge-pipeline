@@ -39,7 +39,7 @@
 
 ## Project Context
 
-이 워크스페이스는 카메라 프레임 캡처와 후속 탐지를 위한 ROS 2 Python 기반 perception pipeline을 구현한다. 현재 패키지는 초기 단계이므로 작고 테스트 가능하며 ROS 관례에 맞게 유지한다.
+이 워크스페이스는 카메라 프레임 캡처와 후속 탐지를 위한 ROS 2 Python 기반 추론 파이프라인을 구현한다. 현재 패키지는 초기 단계이므로 작고 테스트 가능하며 ROS 관례에 맞게 유지한다.
 
 Tech stack: ROS 2, colcon, ament_python, Python, rclpy, OpenCV, cv_bridge, sensor_msgs, vision_msgs, std_msgs, Ultralytics YOLO, pytest.
 
