@@ -10,8 +10,9 @@ from vision_msgs.msg import Detection2DArray
 from vision_msgs.msg import ObjectHypothesisWithPose
 
 from object_detector.parameters import declare_detector_parameters
+from object_detector.parameters import parse_model_paths
 from object_detector.parameters import read_detector_parameters
-from object_detector.yolo_detector import YoloDetector
+from object_detector.yolo_detector import MultiYoloDetector
 
 
 class YoloDetectorNode(Node):
@@ -29,10 +30,11 @@ class YoloDetectorNode(Node):
         self.publish_annotated_image = parameters.publish_annotated_image
 
         self.bridge = CvBridge()
-        self.detector = YoloDetector(
-            model_path=parameters.model_path,
+        self.detector = MultiYoloDetector(
+            model_paths=parse_model_paths(parameters.model_paths),
             confidence_threshold=parameters.confidence_threshold,
             iou_threshold=parameters.iou_threshold,
+            duplicate_iou_threshold=parameters.duplicate_iou_threshold,
             image_size=parameters.image_size,
             device=parameters.device,
         )
@@ -60,7 +62,7 @@ class YoloDetectorNode(Node):
             'Detecting objects from %s with %s on device %s'
             % (
                 self.input_image_topic,
-                parameters.model_path,
+                parameters.model_paths,
                 self.detector.requested_device_name,
             )
         )
@@ -78,7 +80,10 @@ class YoloDetectorNode(Node):
             )
             annotated_message = None
             if self.annotated_image_publisher is not None:
-                annotated_frame = self.detector.plot_last_result(frame)
+                annotated_frame = self.detector.plot_detections(
+                    frame,
+                    detections,
+                )
                 annotated_message = self.bridge.cv2_to_imgmsg(
                     annotated_frame,
                     encoding='bgr8',

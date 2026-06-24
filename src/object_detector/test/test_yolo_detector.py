@@ -2,7 +2,10 @@
 
 import numpy as np
 
+from object_detector.yolo_detector import Detection
+from object_detector.yolo_detector import detection_iou
 from object_detector.yolo_detector import detections_from_ultralytics_result
+from object_detector.yolo_detector import suppress_duplicate_detections
 from object_detector.yolo_detector import YoloDetector
 from object_detector.yolo_detector import _device_name
 
@@ -34,6 +37,61 @@ def test_detections_from_ultralytics_result():
     assert detection.center_y == 50.0
     assert detection.width == 40.0
     assert detection.height == 60.0
+
+
+def make_detection(label, confidence, x_min, y_min, x_max, y_max):
+    return Detection(
+        class_id=0,
+        label=label,
+        confidence=confidence,
+        x_min=x_min,
+        y_min=y_min,
+        x_max=x_max,
+        y_max=y_max,
+    )
+
+
+def test_detection_iou_returns_overlap_ratio():
+    first = make_detection('person', 0.9, 0.0, 0.0, 10.0, 10.0)
+    second = make_detection('person', 0.8, 5.0, 0.0, 15.0, 10.0)
+
+    assert detection_iou(first, second) == 0.3333333333333333
+
+
+def test_suppress_duplicate_detections_keeps_highest_confidence_same_label():
+    lower_confidence = make_detection('person', 0.6, 0.0, 0.0, 10.0, 10.0)
+    higher_confidence = make_detection('person', 0.9, 1.0, 1.0, 11.0, 11.0)
+
+    detections = suppress_duplicate_detections(
+        [lower_confidence, higher_confidence],
+        iou_threshold=0.5,
+    )
+
+    assert detections == [higher_confidence]
+
+
+def test_suppress_duplicate_detections_ignores_label_case():
+    lower_confidence = make_detection('Person', 0.6, 0.0, 0.0, 10.0, 10.0)
+    higher_confidence = make_detection('person', 0.9, 1.0, 1.0, 11.0, 11.0)
+
+    detections = suppress_duplicate_detections(
+        [lower_confidence, higher_confidence],
+        iou_threshold=0.5,
+    )
+
+    assert detections == [higher_confidence]
+
+
+def test_suppress_duplicate_detections_keeps_overlapping_different_labels():
+    person = make_detection('person', 0.9, 0.0, 0.0, 10.0, 10.0)
+    mannequin = make_detection('mannequin', 0.8, 1.0, 1.0, 11.0, 11.0)
+
+    detections = suppress_duplicate_detections(
+        [person, mannequin],
+        iou_threshold=0.5,
+    )
+
+    assert detections == [person, mannequin]
 
 
 class PlotResult:

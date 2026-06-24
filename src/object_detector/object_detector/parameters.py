@@ -27,9 +27,10 @@ class DetectorParameters:
     input_image_topic: str
     detections_topic: str
     annotated_image_topic: str
-    model_path: str
+    model_paths: str
     confidence_threshold: float
     iou_threshold: float
+    duplicate_iou_threshold: float
     image_size: int
     device: str
     publish_annotated_image: bool
@@ -39,9 +40,10 @@ PARAMETER_SPECS = (
     ParameterSpec('input_image_topic', '/camera/image_raw'),
     ParameterSpec('detections_topic', '/detections'),
     ParameterSpec('annotated_image_topic', '/detections/image'),
-    ParameterSpec('model_path', 'yolo11n.pt'),
+    ParameterSpec('model_paths', 'yolo11n.pt'),
     ParameterSpec('confidence_threshold', 0.25, float),
     ParameterSpec('iou_threshold', 0.7, float),
+    ParameterSpec('duplicate_iou_threshold', 0.7, float),
     ParameterSpec('image_size', 640, int),
     ParameterSpec('device', ''),
     ParameterSpec('publish_annotated_image', True, bool),
@@ -63,12 +65,16 @@ def read_detector_parameters(node):
             node,
             'annotated_image_topic',
         ),
-        model_path=_string_parameter(node, 'model_path'),
+        model_paths=_string_parameter(node, 'model_paths'),
         confidence_threshold=_double_parameter(
             node,
             'confidence_threshold',
         ),
         iou_threshold=_double_parameter(node, 'iou_threshold'),
+        duplicate_iou_threshold=_double_parameter(
+            node,
+            'duplicate_iou_threshold',
+        ),
         image_size=_integer_parameter(node, 'image_size'),
         device=_string_parameter(node, 'device'),
         publish_annotated_image=_bool_parameter(
@@ -97,10 +103,30 @@ def validate_detector_parameters(parameters, warn):
         minimum=0.0,
         maximum=1.0,
     )
+    parameters = _bounded_float_parameter(
+        parameters,
+        warn,
+        name='duplicate_iou_threshold',
+        default_value=0.7,
+        minimum=0.0,
+        maximum=1.0,
+    )
     if parameters.image_size <= 0:
         warn('image_size must be positive; using 640')
         parameters = replace(parameters, image_size=640)
+    if not parse_model_paths(parameters.model_paths):
+        warn('model_paths must contain at least one path; using yolo11n.pt')
+        parameters = replace(parameters, model_paths='yolo11n.pt')
     return parameters
+
+
+def parse_model_paths(value):
+    """콤마 구분 모델 경로 문자열을 정리된 경로 목록으로 변환합니다."""
+    return [
+        path.strip()
+        for path in value.split(',')
+        if path.strip()
+    ]
 
 
 def _bounded_float_parameter(

@@ -15,7 +15,8 @@
 - 워크스페이스 로드 후 정적 이미지 노드 실행: `ros2 run image_capture image_capture_node --ros-args -p image_path:=<image_path>`
 - 워크스페이스 로드 후 정적 이미지 런치 실행: `ros2 launch image_capture image_capture.launch.py image_path:=<image_path>`
 - 워크스페이스 로드 후 YOLO 탐지 노드 실행: `ros2 run object_detector yolo_detector_node`
-- 워크스페이스 로드 후 YOLO 탐지 런치 실행: `ros2 launch object_detector yolo_detector.launch.py input_image_topic:=<input_image_topic>`
+- 워크스페이스 로드 후 YOLO 탐지 런치 실행: `ros2 launch object_detector yolo_detector.launch.py input_image_topic:=<input_image_topic> model_paths:=<model_path>[,<model_path>...]`
+- 다중 YOLO 모델 실행 예시: `ros2 launch object_detector yolo_detector.launch.py model_paths:=yolo11n.pt,/path/to/custom_best.pt duplicate_iou_threshold:=0.7`
 
 ## Golden Rules
 

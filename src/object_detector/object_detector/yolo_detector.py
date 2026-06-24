@@ -97,6 +97,85 @@ class YoloDetector:
         return self.device or 'auto'
 
 
+class MultiYoloDetector:
+    """여러 YOLO 모델 결과를 병합해 중복 탐지를 제거합니다."""
+
+    def __init__(
+        self,
+        model_paths,
+        confidence_threshold=0.25,
+        iou_threshold=0.7,
+        duplicate_iou_threshold=0.7,
+        image_size=640,
+        device='',
+    ):
+        """YOLO 모델 목록을 로드합니다."""
+        if not model_paths:
+            raise ValueError('model_paths must contain at least one path')
+
+        self.detectors = [
+            YoloDetector(
+                model_path=model_path,
+                confidence_threshold=confidence_threshold,
+                iou_threshold=iou_threshold,
+                image_size=image_size,
+                device=device,
+            )
+            for model_path in model_paths
+        ]
+        self.duplicate_iou_threshold = duplicate_iou_threshold
+
+    def detect(self, frame):
+        """모든 모델로 추론한 뒤 같은 label 중복 박스를 제거합니다."""
+        detections = []
+        for detector in self.detectors:
+            detections.extend(detector.detect(frame))
+        return suppress_duplicate_detections(
+            detections,
+            self.duplicate_iou_threshold,
+        )
+
+    def plot_detections(self, frame, detections):
+        """병합된 Detection 목록을 OpenCV 이미지에 그립니다."""
+        try:
+            import cv2
+        except ImportError as exc:
+            raise RuntimeError(
+                'OpenCV is required to publish annotated images.'
+            ) from exc
+
+        annotated = frame.copy()
+        for detection in detections:
+            x_min = int(round(detection.x_min))
+            y_min = int(round(detection.y_min))
+            x_max = int(round(detection.x_max))
+            y_max = int(round(detection.y_max))
+            color = _label_color(detection.label)
+            cv2.rectangle(
+                annotated,
+                (x_min, y_min),
+                (x_max, y_max),
+                color,
+                2,
+            )
+            text = '%s %.2f' % (detection.label, detection.confidence)
+            _draw_label(cv2, annotated, text, x_min, y_min, color)
+        return annotated
+
+    @property
+    def effective_device(self):
+        """첫 모델에서 확인된 추론 장치 이름을 반환합니다."""
+        for detector in self.detectors:
+            if detector.effective_device is not None:
+                return detector.effective_device
+        return None
+
+    @property
+    def requested_device_name(self):
+        """요청된 추론 장치 이름을 반환합니다."""
+        return self.detectors[0].requested_device_name
+
+
 def detections_from_ultralytics_result(result):
     """Ultralytics Results 객체를 Detection 목록으로 변환합니다."""
     boxes = getattr(result, 'boxes', None)
@@ -125,6 +204,89 @@ def detections_from_ultralytics_result(result):
             y_max=float(xyxy[3]),
         ))
     return detections
+
+
+def suppress_duplicate_detections(detections, iou_threshold):
+    """같은 label끼리 IoU가 높은 중복 박스를 confidence 기준으로 제거합니다."""
+    kept = []
+    sorted_detections = sorted(
+        detections,
+        key=lambda detection: detection.confidence,
+        reverse=True,
+    )
+    for detection in sorted_detections:
+        has_duplicate = any(
+            _label_key(detection.label) == _label_key(kept_detection.label)
+            and detection_iou(detection, kept_detection) >= iou_threshold
+            for kept_detection in kept
+        )
+        if not has_duplicate:
+            kept.append(detection)
+    return kept
+
+
+def _label_key(label):
+    return label.casefold()
+
+
+def detection_iou(first, second):
+    """두 Detection 박스의 IoU를 반환합니다."""
+    intersection_x_min = max(first.x_min, second.x_min)
+    intersection_y_min = max(first.y_min, second.y_min)
+    intersection_x_max = min(first.x_max, second.x_max)
+    intersection_y_max = min(first.y_max, second.y_max)
+    intersection_width = max(0.0, intersection_x_max - intersection_x_min)
+    intersection_height = max(0.0, intersection_y_max - intersection_y_min)
+    intersection_area = intersection_width * intersection_height
+
+    first_area = max(0.0, first.width) * max(0.0, first.height)
+    second_area = max(0.0, second.width) * max(0.0, second.height)
+    union_area = first_area + second_area - intersection_area
+    if union_area <= 0.0:
+        return 0.0
+    return intersection_area / union_area
+
+
+def _label_color(label):
+    value = sum((index + 1) * ord(char) for index, char in enumerate(label))
+    return (
+        64 + value % 160,
+        64 + (value // 3) % 160,
+        64 + (value // 7) % 160,
+    )
+
+
+def _draw_label(cv2, image, text, x_min, y_min, color):
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.5
+    thickness = 1
+    text_size, baseline = cv2.getTextSize(
+        text,
+        font,
+        font_scale,
+        thickness,
+    )
+    text_width, text_height = text_size
+    label_y_min = max(0, y_min - text_height - baseline - 4)
+    label_y_max = label_y_min + text_height + baseline + 4
+    label_x_max = x_min + text_width + 6
+    cv2.rectangle(
+        image,
+        (x_min, label_y_min),
+        (label_x_max, label_y_max),
+        color,
+        -1,
+    )
+    cv2.putText(
+        image,
+        text,
+        (x_min + 3, label_y_max - baseline - 2),
+        font,
+        font_scale,
+        (255, 255, 255),
+        thickness,
+        cv2.LINE_AA,
+    )
 
 
 def _to_list(value):
