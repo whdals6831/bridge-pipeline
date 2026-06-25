@@ -1,9 +1,11 @@
 #include <memory>
 #include <string>
 
+#include "pcl/filters/extract_indices.h"
 #include "pcl/filters/voxel_grid.h"
 #include "pcl/point_cloud.h"
 #include "pcl/point_types.h"
+#include "pcl/segmentation/progressive_morphological_filter.h"
 #include "pcl_conversions/pcl_conversions.h"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
@@ -15,21 +17,17 @@ public:
   : Node("lidar_preprocessor_node")
   {
     input_topic_ = declare_parameter<std::string>("input_topic", "/points_raw");
-    const auto downsampled_topic =
-      declare_parameter<std::string>("downsampled_topic", "/lidar/points_downsampled");
-    const auto ground_removed_topic =
-      declare_parameter<std::string>("ground_removed_topic", "/lidar/points_ground_removed");
     const auto preprocessed_topic =
       declare_parameter<std::string>("preprocessed_topic", "/lidar/points_preprocessed");
+    enable_downsample_ = declare_parameter<bool>("enable_downsample", true);
+    enable_ground_removal_ = declare_parameter<bool>("enable_ground_removal", true);
     voxel_leaf_size_ = declare_parameter<double>("voxel_leaf_size", 0.1);
-    ground_min_z_ = declare_parameter<double>("ground_min_z", -0.2);
-    ground_max_z_ = declare_parameter<double>("ground_max_z", 0.2);
+    max_window_size_ = declare_parameter<int>("max_window_size", 10);
+    slope_ = declare_parameter<double>("slope", 1.0);
+    initial_distance_ = declare_parameter<double>("initial_distance", 0.5);
+    max_distance_ = declare_parameter<double>("max_distance", 3.0);
 
     const auto qos = rclcpp::SensorDataQoS();
-    downsampled_pub_ =
-      create_publisher<sensor_msgs::msg::PointCloud2>(downsampled_topic, qos);
-    ground_removed_pub_ =
-      create_publisher<sensor_msgs::msg::PointCloud2>(ground_removed_topic, qos);
     preprocessed_pub_ =
       create_publisher<sensor_msgs::msg::PointCloud2>(preprocessed_topic, qos);
     subscription_ = create_subscription<sensor_msgs::msg::PointCloud2>(
@@ -47,12 +45,10 @@ private:
     auto input = std::make_shared<PointCloud>();
     pcl::fromROSMsg(*msg, *input);
 
-    const auto downsampled = downsample(input);
-    const auto ground_removed = remove_ground(input);
-    const auto preprocessed = remove_ground(downsampled);
-
-    publish(*downsampled, msg->header, downsampled_pub_);
-    publish(*ground_removed, msg->header, ground_removed_pub_);
+    auto preprocessed = enable_downsample_ ? downsample(input) : input;
+    if (enable_ground_removal_) {
+      preprocessed = remove_ground(preprocessed);
+    }
     publish(*preprocessed, msg->header, preprocessed_pub_);
   }
 
@@ -74,18 +70,26 @@ private:
   PointCloud::Ptr remove_ground(const PointCloud::ConstPtr cloud) const
   {
     auto filtered = std::make_shared<PointCloud>();
-    filtered->points.reserve(cloud->points.size());
 
-    for (const auto & point : cloud->points) {
-      const bool is_ground = ground_min_z_ <= point.z && point.z <= ground_max_z_;
-      if (!is_ground) {
-        filtered->points.push_back(point);
-      }
+    pcl::PointIndices::Ptr ground_indices(new pcl::PointIndices);
+    pcl::ProgressiveMorphologicalFilter<pcl::PointXYZ> ground_filter;
+    ground_filter.setInputCloud(cloud);
+    ground_filter.setMaxWindowSize(max_window_size_);
+    ground_filter.setSlope(static_cast<float>(slope_));
+    ground_filter.setInitialDistance(static_cast<float>(initial_distance_));
+    ground_filter.setMaxDistance(static_cast<float>(max_distance_));
+    ground_filter.extract(ground_indices->indices);
+
+    if (ground_indices->indices.empty()) {
+      *filtered = *cloud;
+      return filtered;
     }
 
-    filtered->width = static_cast<std::uint32_t>(filtered->points.size());
-    filtered->height = 1;
-    filtered->is_dense = false;
+    pcl::ExtractIndices<pcl::PointXYZ> extract;
+    extract.setInputCloud(cloud);
+    extract.setIndices(ground_indices);
+    extract.setNegative(true);
+    extract.filter(*filtered);
     return filtered;
   }
 
@@ -101,12 +105,14 @@ private:
   }
 
   std::string input_topic_;
+  bool enable_downsample_;
+  bool enable_ground_removal_;
   double voxel_leaf_size_;
-  double ground_min_z_;
-  double ground_max_z_;
+  int max_window_size_;
+  double slope_;
+  double initial_distance_;
+  double max_distance_;
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subscription_;
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr downsampled_pub_;
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr ground_removed_pub_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr preprocessed_pub_;
 };
 

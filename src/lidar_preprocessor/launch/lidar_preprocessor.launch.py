@@ -7,31 +7,29 @@ from launch_ros.parameter_descriptions import ParameterValue
 
 def generate_launch_description():
     input_topic = LaunchConfiguration("input_topic")
-    downsampled_topic = LaunchConfiguration("downsampled_topic")
-    ground_removed_topic = LaunchConfiguration("ground_removed_topic")
     preprocessed_topic = LaunchConfiguration("preprocessed_topic")
+    enable_downsample = LaunchConfiguration("enable_downsample")
+    enable_ground_removal = LaunchConfiguration("enable_ground_removal")
     voxel_leaf_size = LaunchConfiguration("voxel_leaf_size")
-    ground_min_z = LaunchConfiguration("ground_min_z")
-    ground_max_z = LaunchConfiguration("ground_max_z")
+    max_window_size = LaunchConfiguration("max_window_size")
+    slope = LaunchConfiguration("slope")
+    initial_distance = LaunchConfiguration("initial_distance")
+    max_distance = LaunchConfiguration("max_distance")
 
     return LaunchDescription(
         [
             DeclareLaunchArgument("input_topic", default_value="/points_raw"),
             DeclareLaunchArgument(
-                "downsampled_topic",
-                default_value="/lidar/points_downsampled",
-            ),
-            DeclareLaunchArgument(
-                "ground_removed_topic",
-                default_value="/lidar/points_ground_removed",
-            ),
-            DeclareLaunchArgument(
                 "preprocessed_topic",
                 default_value="/lidar/points_preprocessed",
             ),
+            DeclareLaunchArgument("enable_downsample", default_value="true"),
+            DeclareLaunchArgument("enable_ground_removal", default_value="true"),
             DeclareLaunchArgument("voxel_leaf_size", default_value="0.1"),
-            DeclareLaunchArgument("ground_min_z", default_value="-0.2"),
-            DeclareLaunchArgument("ground_max_z", default_value="0.2"),
+            DeclareLaunchArgument("max_window_size", default_value="10"),
+            DeclareLaunchArgument("slope", default_value="1.0"),
+            DeclareLaunchArgument("initial_distance", default_value="0.5"),
+            DeclareLaunchArgument("max_distance", default_value="3.0"),
             Node(
                 package="lidar_preprocessor",
                 executable="lidar_preprocessor_node",
@@ -39,19 +37,33 @@ def generate_launch_description():
                 parameters=[
                     {
                         "input_topic": input_topic,
-                        "downsampled_topic": downsampled_topic,
-                        "ground_removed_topic": ground_removed_topic,
                         "preprocessed_topic": preprocessed_topic,
+                        "enable_downsample": ParameterValue(
+                            enable_downsample,
+                            value_type=bool,
+                        ),
+                        "enable_ground_removal": ParameterValue(
+                            enable_ground_removal,
+                            value_type=bool,
+                        ),
                         "voxel_leaf_size": ParameterValue(
                             voxel_leaf_size,
                             value_type=float,
                         ),
-                        "ground_min_z": ParameterValue(
-                            ground_min_z,
+                        "max_window_size": ParameterValue(
+                            max_window_size,
+                            value_type=int,
+                        ),
+                        "slope": ParameterValue(
+                            slope,
                             value_type=float,
                         ),
-                        "ground_max_z": ParameterValue(
-                            ground_max_z,
+                        "initial_distance": ParameterValue(
+                            initial_distance,
+                            value_type=float,
+                        ),
+                        "max_distance": ParameterValue(
+                            max_distance,
                             value_type=float,
                         ),
                     }
