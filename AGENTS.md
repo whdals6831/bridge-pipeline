@@ -55,4 +55,4 @@ Tech stack: ROS 2, colcon, ament_python, ament_cmake, Python, C++, rclpy, rclcpp
 - **[비디오 파일 캡처 패키지](./src/video_capture/AGENTS.md)** — 로컬 비디오 파일 입력, 반복 재생, `/video/image_raw` 발행 변경 시.
 - **[정적 이미지 캡처 패키지](./src/image_capture/AGENTS.md)** — 단일 이미지 파일 반복 발행, `/image/image_raw` 토픽, 이미지 런치 변경 시.
 - **[객체 탐지 패키지](./src/object_detector/AGENTS.md)** — 탐지 패키지 스캐폴딩, 메시지 의존성, 향후 탐지 노드 변경 시.
-- **[라이다 전처리 패키지](./src/lidar_preprocessor/AGENTS.md)** — PointCloud2 구독, PCL 다운샘플링, 도로 바닥 제거, RViz 확인 토픽 변경 시.
+- **[라이다 전처리 패키지](./src/lidar_preprocessor/AGENTS.md)** — PointCloud2 구독, PCL 다운샘플링, 도로 바닥 제거, 다중 ROI 알람/마커 변경 시.
