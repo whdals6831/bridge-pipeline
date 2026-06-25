@@ -31,7 +31,7 @@
 - 패키지 빌드 명령: `colcon build --symlink-install --packages-select lidar_preprocessor`
 - 패키지 테스트 명령: `colcon test --packages-select lidar_preprocessor --event-handlers console_direct+`
 - 결과 확인: `colcon test-result --verbose`
-- 토픽 계약이나 파라미터 기본값을 바꾸면 launch 인자와 노드 기본값을 함께 확인한다.
+- 파라미터 기본값은 노드의 `declare_parameter()`에만 둔다. launch 인자는 명시된 값만 override한다.
 - ROI 메시지 필드나 토픽명을 바꾸면 `rosidl_generate_interfaces()`, `package.xml`, launch 인자, 노드 publisher 타입을 함께 확인한다.
 
 ## Local Golden Rules
@@ -42,4 +42,4 @@
 - 센서별 토픽명, frame ID, 장착 높이를 코드에 하드코딩하지 않는다.
 - PCL 의존성을 추가/변경하면 `package.xml`과 `CMakeLists.txt`를 함께 갱신한다.
 - ROI는 축 정렬 박스 기준이다. 회전 ROI, 폴리곤 ROI, 추적 상태는 실제 요구가 생길 때만 추가한다.
-- ROI 기본값을 바꿀 때는 노드 기본값과 launch 기본값을 같이 맞춘다.
+- ROI 기본값을 바꿀 때는 노드의 `declare_parameter()` 기본값만 갱신한다.
