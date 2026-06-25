@@ -30,17 +30,20 @@ public:
     enable_downsample_ = declare_parameter<bool>("enable_downsample", false);
     enable_ground_removal_ = declare_parameter<bool>("enable_ground_removal", false);
     enable_roi_alarm_ = declare_parameter<bool>("enable_roi_alarm", false);
+    stamp_outputs_with_node_time_ = declare_parameter<bool>("stamp_outputs_with_node_time", true);
     voxel_leaf_size_ = declare_parameter<double>("voxel_leaf_size", 0.1);
     max_window_size_ = declare_parameter<int>("max_window_size", 10);
     slope_ = declare_parameter<double>("slope", 1.0);
     initial_distance_ = declare_parameter<double>("initial_distance", 0.5);
     max_distance_ = declare_parameter<double>("max_distance", 50.0);
-    roi_names_ = declare_parameter<std::vector<std::string>>("roi_names", {"default", "default_2"});
-    roi_min_xs_ = declare_parameter<std::vector<double>>("roi_min_xs", {-3.0, 1.0});
-    roi_max_xs_ = declare_parameter<std::vector<double>>("roi_max_xs", {-1.0, 3.0});
-    roi_min_ys_ = declare_parameter<std::vector<double>>("roi_min_ys", {-1.0, -1.0});
+    roi_names_ = declare_parameter<std::vector<std::string>>(
+      "roi_names",
+      {"danger_zone", "warning_zone"});
+    roi_min_xs_ = declare_parameter<std::vector<double>>("roi_min_xs", {0.0, 1.0});
+    roi_max_xs_ = declare_parameter<std::vector<double>>("roi_max_xs", {1.0, 2.0});
+    roi_min_ys_ = declare_parameter<std::vector<double>>("roi_min_ys", {0.0, 0.0});
     roi_max_ys_ = declare_parameter<std::vector<double>>("roi_max_ys", {1.0, 1.0});
-    roi_min_zs_ = declare_parameter<std::vector<double>>("roi_min_zs", {-1.0, -1.0});
+    roi_min_zs_ = declare_parameter<std::vector<double>>("roi_min_zs", {0.0, 0.0});
     roi_max_zs_ = declare_parameter<std::vector<double>>("roi_max_zs", {1.0, 1.0});
     roi_point_thresholds_ = declare_parameter<std::vector<int64_t>>(
       "roi_point_thresholds",
@@ -73,8 +76,18 @@ private:
     if (enable_ground_removal_) {
       preprocessed = remove_ground(preprocessed);
     }
-    publish(*preprocessed, msg->header, preprocessed_pub_);
-    publish_roi_alarm(*preprocessed, msg->header);
+    const auto header = output_header(msg->header);
+    publish(*preprocessed, header, preprocessed_pub_);
+    publish_roi_alarm(*preprocessed, header);
+  }
+
+  std_msgs::msg::Header output_header(const std_msgs::msg::Header & input_header) const
+  {
+    auto header = input_header;
+    if (stamp_outputs_with_node_time_) {
+      header.stamp = now();
+    }
+    return header;
   }
 
   PointCloud::Ptr downsample(const PointCloud::ConstPtr cloud) const
@@ -215,6 +228,7 @@ private:
   bool enable_downsample_;
   bool enable_ground_removal_;
   bool enable_roi_alarm_;
+  bool stamp_outputs_with_node_time_;
   double voxel_leaf_size_;
   int max_window_size_;
   double slope_;

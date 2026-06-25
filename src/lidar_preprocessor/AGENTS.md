@@ -37,8 +37,8 @@
 ## Local Golden Rules
 
 - plane segmentation이나 복잡한 지면 모델은 PMF 방식이 부족할 때만 추가한다.
-- `PointCloud2` header는 출력 메시지에 유지해 RViz fixed frame 확인을 깨지 않는다.
-- `RoiAlarmArray`와 ROI marker도 입력 `PointCloud2` header를 그대로 사용한다.
+- `PointCloud2`/`RoiAlarmArray`/ROI marker의 frame ID는 입력 `PointCloud2` header를 유지한다.
+- `stamp_outputs_with_node_time`이 `true`이면 출력 stamp는 ROS node clock으로 맞춰 카메라 탐지 timestamp와 비교 가능하게 한다.
 - 센서별 토픽명, frame ID, 장착 높이를 코드에 하드코딩하지 않는다.
 - PCL 의존성을 추가/변경하면 `package.xml`과 `CMakeLists.txt`를 함께 갱신한다.
 - ROI는 축 정렬 박스 기준이다. 회전 ROI, 폴리곤 ROI, 추적 상태는 실제 요구가 생길 때만 추가한다.
